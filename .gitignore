@@ -1,0 +1,9 @@
+# Sphinx documentation
+doc/_build/
+
+# Distribution / packaging
+build/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
