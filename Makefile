@@ -37,7 +37,7 @@ test:
 
 # help: docs                           - generate project documentation
 doc:
-	@cd doc && sphinx-apidoc --no-toc -e -M -o api ../blobdb >/dev/null && make html
+	@cd doc && make html
 
 
 # help: style                          - perform pep8 check
