@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# blobdb documentation build configuration file, created by
+# digestdb documentation build configuration file, created by
 # sphinx-quickstart on Mon Apr 25 19:44:21 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -50,7 +50,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'blobdb'
+project = 'digestdb'
 copyright = '2016, Chris Laws'
 author = 'Chris Laws'
 
@@ -204,7 +204,7 @@ html_show_copyright = False
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'blobdbdoc'
+htmlhelp_basename = 'digestdbdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -226,7 +226,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'blobdb.tex', 'blobdb Documentation',
+  (master_doc, 'digestdb.tex', 'digestdb Documentation',
    'Chris Laws', 'manual'),
 ]
 
@@ -256,7 +256,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'blobdb', 'blobdb Documentation',
+    (master_doc, 'digestdb', 'digestdb Documentation',
      [author], 1)
 ]
 
@@ -270,8 +270,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'blobdb', 'blobdb Documentation',
-   author, 'blobdb', 'One line description of project.',
+  (master_doc, 'digestdb', 'digestdb Documentation',
+   author, 'digestdb', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -303,7 +303,7 @@ def run_apidoc(_):
         cmd_path = os.path.abspath(
             os.path.join(sys.prefix, 'bin', 'sphinx-apidoc'))
     subprocess.check_call(
-        [cmd_path, '--no-toc', '-e', '-M', '-o', 'api', '../blobdb', '--force'])
+        [cmd_path, '--no-toc', '-e', '-M', '-o', 'api', '../digestdb', '--force'])
 
 def setup(app):
     app.connect('builder-inited', run_apidoc)

@@ -3,6 +3,8 @@ doc/_build/
 
 # Distribution / packaging
 build/
+dist/
+digestdb.egg-info/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

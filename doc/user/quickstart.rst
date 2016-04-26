@@ -6,31 +6,31 @@ Database
 --------
 
 To start using the Blobdb you need to create a database. Let's create a
-:class:`BlobDB` and tell it to use the current directory.
+:class:`DigestDB` and tell it to use the current directory.
 
 .. code-block:: python
 
-    from blobdb import BlobDB
+    from digestdb import DigestDB
 
-    db = BlobDB('.')
+    db = DigestDB('.')
 
-By default the :class:`BlobDB` will create a file called `blobdb.db`
-and a directory called `blobdb.data`. The `blobdb.db` is a simple SQLite
+By default the :class:`DigestDB` will create a file called `digestdb.db`
+and a directory called `digestdb.data`. The `digestdb.db` is a simple SQLite
 database that stores the categories and digests of the blobs. The
-`blobdb.data` is the top level directory in which all the binary blobs are
+`digestdb.data` is the top level directory in which all the binary blobs are
 stored.
 
-The :class:`BlobDB` does not do a whole lot when it is instantiated.
+The :class:`DigestDB` does not do a whole lot when it is instantiated.
 One of the few things it does do is check for a lock file. The
-:class:`BlobDB` uses a lock file to ensure that it has exclusive
+:class:`DigestDB` uses a lock file to ensure that it has exclusive
 access to the data otherwise there is a risk of losing synchronisation between
 the files on disk and those listing in the database.
 
-If the :class:`BlobDB` encounters a lock file when starting up it will
+If the :class:`DigestDB` encounters a lock file when starting up it will
 report the error and shut down. The user is left to make the decision of what
 to do next.
 
-To actually get the :class:`BlobDB` to create the underlying database
+To actually get the :class:`DigestDB` to create the underlying database
 so that binary data can be stored you must open the database.
 
 .. code-block:: python
@@ -50,9 +50,10 @@ If you re-open the database it will simply continue on from where it left off.
 If you want to create a new database you can explicitly specify `filename` and
 `data_dir`.
 
-The :class:`BlobDB` takes a number of optional arguments. The
+The :class:`DigestDB` takes a number of optional arguments. The
 `dir_depth` is one of the most important settings and is disucssed in detail
 in the following seciton.
+
 
 Database Depth
 ++++++++++++++
@@ -182,7 +183,7 @@ with the category.
 Blobs
 -----
 
-This is why the BlobDB exists at all. BlobDB provides the developer with
+This is why the DigestDB exists at all. DigestDB provides the developer with
 capabilities to put, get delete and query blobs.
 
 To add a blob to the database use `put_data`:

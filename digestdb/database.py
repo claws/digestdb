@@ -85,7 +85,7 @@ def read_database_file(digest, data_dir, dir_depth, chunk_size=2**20):
             yield chunk
 
 
-class BlobDB(object):
+class DigestDB(object):
     '''
     This class implements the data access layer for the binary database.
 
@@ -109,8 +109,8 @@ class BlobDB(object):
     '''
 
     def __init__(self, db_dir,
-                 filename='blobdb.db',
-                 data_dir='blobdb.data',
+                 filename='digestdb.db',
+                 data_dir='digestdb.data',
                  dir_depth=3):
         '''
 
@@ -143,6 +143,9 @@ class BlobDB(object):
         self.engine = None
         self.sessionmaker = None
         self.session = None
+
+    def __repr__(self):
+        return "<DigestDB '{}'>".format(self.db_dir)
 
     def open(self):
         ''' Open the database.
@@ -205,7 +208,7 @@ class BlobDB(object):
     #
 
     def put_category(self, label, description=''):
-        ''' Add a category to blobdb.
+        ''' Add a category to digestdb.
 
         If the category already exists then an exception is raised.
 
@@ -214,7 +217,7 @@ class BlobDB(object):
 
         :param description: a longer description of the category.
 
-        :return: a category identifier. Each data item added to blobdb needs
+        :return: a category identifier. Each data item added to digestdb needs
           to be associated with a category. This allows efficient retrieval
           of certain kinds of blobs at a later time.
         '''
@@ -279,7 +282,7 @@ class BlobDB(object):
     #
 
     def put_data(self, category, data, timestamp=None):
-        ''' Add a data item to blobdb.
+        ''' Add a data item to digestdb.
 
         :param category: a category label that must match an existing
           category that was previously added to the database.
@@ -306,7 +309,7 @@ class BlobDB(object):
         return digest
 
     def put_data_many(self, *items):
-        ''' Add many data items to blobdb.
+        ''' Add many data items to digestdb.
 
         :param items: a list of tuples (category_id, data, [timestamp]).
 
@@ -327,7 +330,7 @@ class BlobDB(object):
         return digests
 
     # def put_file(self, category, filepath, timestamp=None):
-    #     ''' Add the contents of a file to blobdb.
+    #     ''' Add the contents of a file to digestdb.
 
     #     This is just a convenience wrapper around `put` which efficiently
     #     reads the contents of the file and feeds it into put.
@@ -387,12 +390,12 @@ class BlobDB(object):
         return result
 
     def get_data(self, digest):
-        ''' Return the contents of a blob.
+        ''' Return the contents of a data item.
 
         :param digest: a bytes object representing the hash digest of the
           data item.
 
-        :return: a generator that returns chunks of the blob.
+        :return: a generator that returns chunks of the data item.
         '''
         # We can just go straight to the filesystem to fetch a blob.
         # Depending on the size of the objects it may be useful to

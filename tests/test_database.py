@@ -1,4 +1,4 @@
-''' Tests for blobdb.database '''
+''' Tests for digestdb.database '''
 
 import os
 import random
@@ -8,7 +8,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-import blobdb
+import digestdb
 
 
 SYS_TMP_DIR = os.environ.get('TMPDIR', tempfile.gettempdir())
@@ -28,19 +28,19 @@ def create_data_item(categories, max_size=1000):
     return cat, data
 
 
-class BlobDBTestCase(unittest.TestCase):
+class DigestDBTestCase(unittest.TestCase):
 
     def test_database_db_dir(self):
         ''' check data can be hashed into a digest '''
 
         with self.assertRaises(Exception) as cm:
-            blobdb.BlobDB('blah')
+            digestdb.DigestDB('blah')
         expected = 'Invalid db_dir:'
         self.assertIn(expected, str(cm.exception))
 
         tempdir = tempfile.mkdtemp(dir=SYS_TMP_DIR)
         try:
-            blobdb.BlobDB(tempdir)
+            digestdb.DigestDB(tempdir)
         finally:
             if os.path.isdir(tempdir):
                 shutil.rmtree(tempdir)
@@ -49,14 +49,14 @@ class BlobDBTestCase(unittest.TestCase):
         ''' check that database locking works '''
         tempdir = tempfile.mkdtemp(dir=SYS_TMP_DIR)
         try:
-            db1 = blobdb.BlobDB(tempdir)
+            db1 = digestdb.DigestDB(tempdir)
             self.assertFalse(os.path.exists(db1.lock_file))
             db1.open()
             self.assertTrue(os.path.exists(db1.lock_file))
 
             # attempt to open another db. It should detect the lock file
             # and raise an exception.
-            db2 = blobdb.BlobDB(tempdir)
+            db2 = digestdb.DigestDB(tempdir)
             with self.assertRaises(Exception) as cm:
                 db2.open()
             expected = 'Database is already open'
@@ -85,7 +85,7 @@ class BlobDBTestCase(unittest.TestCase):
         cdesc = 'This category is just for tests'
 
         try:
-            db = blobdb.BlobDB(tempdir, dir_depth=1)
+            db = digestdb.DigestDB(tempdir, dir_depth=1)
             db.open()
 
             db.query_category()
@@ -120,7 +120,7 @@ class BlobDBTestCase(unittest.TestCase):
 
         try:
             dir_depth = 1
-            db = blobdb.BlobDB(tempdir, dir_depth=dir_depth)
+            db = digestdb.DigestDB(tempdir, dir_depth=dir_depth)
             db.open()
 
             # add some categories to use when adding blobs

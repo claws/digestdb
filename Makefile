@@ -12,7 +12,7 @@ PYTHON := $(shell which python3.5)
 
 STYLE_EXCLUDE_LIST:=git status --porcelain --ignored | grep "!!" | grep ".py$$" | cut -d " " -f2 | tr "\n" ","
 STYLE_MAX_LINE_LENGTH:=160
-STYLE_PEP8_CMD:=pep8 --exclude=.git,doc,$(shell $(STYLE_EXCLUDE_LIST)) --ignore=E309,E402 --max-line-length=$(STYLE_MAX_LINE_LENGTH) blobdb tests
+STYLE_PEP8_CMD:=pep8 --exclude=.git,doc,$(shell $(STYLE_EXCLUDE_LIST)) --ignore=E309,E402 --max-line-length=$(STYLE_MAX_LINE_LENGTH) digestdb tests
 
 
 # help: help                           - display this makefile's help information
