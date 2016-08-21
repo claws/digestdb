@@ -65,7 +65,7 @@ dist:
 
 # help: dist.upload                    - upload a source distribution package
 dist.upload:
-	@python setup.py sdist upoad
+	@python setup.py sdist upload
 
 
 # Keep these lines at the end of the file to retain nice help
