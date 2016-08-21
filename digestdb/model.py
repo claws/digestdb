@@ -3,7 +3,7 @@
 import datetime
 import logging
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import as_declarative  # declarative_base
 from sqlalchemy import (
     LargeBinary,
     Column,
@@ -16,10 +16,10 @@ from sqlalchemy import (
 logger = logging.getLogger(__name__)
 
 
-_Base = declarative_base()
+# _Base = declarative_base()
 
-
-class Base(_Base):
+@as_declarative()
+class Base(object):
     ''' An abstract base class providing common table functions '''
 
     __abstract__ = True
@@ -31,7 +31,7 @@ class Base(_Base):
     def to_dict(self):
         return {
             col.name: getattr(self, col.name)
-                for col in self.__table__.columns}
+            for col in self.__table__.columns}
 
 
 class Category(Base):
@@ -56,13 +56,13 @@ class Category(Base):
     description = Column(String)
 
 
-class Blob(Base):
+class Digest(Base):
     '''
-    This table definition stores a timestamp, object identifier and a hash for
-    binary blobs.
+    This table definition stores a timestamp, object identifier and the hash
+    for a binary blob.
     '''
 
-    __tablename__ = 'blobs'
+    __tablename__ = 'digests'
 
     digest = Column(LargeBinary, primary_key=True)
 

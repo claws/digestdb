@@ -1,26 +1,38 @@
 
-import datetime
 import logging
-import itertools
 import os
-import tempfile
 
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from .model import Base, Category, Blob
-from .hashify import data_digest, digest_filepath
+from .model import Base, Category, Digest
+from .hashify import data_digest, file_digest, digest_filepath
+
+# type annotations
+from typing import (
+    Dict, Generator, List, Optional, Sequence, Tuple, Union)
+import datetime
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm.session import Session
+
+# type aliases
+PutItem = Tuple[str, bytes, Union[datetime.datetime, None]]
+QueryResult = Sequence[Tuple[bytes, str, int, datetime.datetime]]
 
 
 logger = logging.getLogger(__name__)
 
 
-def write_database_file(digest, data, data_dir, dir_depth):
-    ''' Write a binary database item to the file system.
+def write_database_file(digest: bytes,
+                        data: bytes,
+                        data_dir: str,
+                        dir_depth: int) -> None:
+    '''
+    Writes a binary database item to the file system.
 
-    This method first creates the filename and file path from the digest
+    This function first creates the filename and file path from the digest
     information. It creates the directory tree is necessary and then writes
     the data into the file.
 
@@ -39,11 +51,7 @@ def write_database_file(digest, data, data_dir, dir_depth):
     fpath = os.path.join(
         data_dir, digest_filepath(digest, dir_depth=dir_depth))
 
-    # Managing lots of directories can be a pain. For example, at a default
-    # depth of 3 directories that would be 16 million directories to create.
-    # Deleting this many directories (e.g. during test runs) takes a very
-    # long time. So, a directory is only created if a data file being stored
-    # demands its presence.
+    # Create directories as required
     os.makedirs(os.path.dirname(fpath), exist_ok=True)
 
     if os.path.exists(fpath):
@@ -54,7 +62,10 @@ def write_database_file(digest, data, data_dir, dir_depth):
         fd.write(data)
 
 
-def read_database_file(digest, data_dir, dir_depth, chunk_size=2**20):
+def read_database_file(digest: bytes,
+                       data_dir: str,
+                       dir_depth: int,
+                       chunk_size: int = 2**20) -> Generator[bytes, None, None]:
     '''
     Return the binary data associated with the digest.
 
@@ -66,7 +77,6 @@ def read_database_file(digest, data_dir, dir_depth, chunk_size=2**20):
         for chunk in read_database_file():
             print(chunk)
 
-
     :param digest: a bytes object representing a hash of some data.
 
     :param data_dir: the database's root directory path where binary data is
@@ -76,13 +86,38 @@ def read_database_file(digest, data_dir, dir_depth, chunk_size=2**20):
 
     :param chunk_size: the number of bytes to read from the file per
       iteration.
+
+    :raises: OSError exception if the resolved file does not exist.
     '''
     fpath = os.path.join(data_dir, digest_filepath(
         digest, dir_depth=dir_depth))
-    assert os.path.exists(fpath)
     with open(fpath, 'rb') as fd:
         for chunk in iter(lambda: fd.read(chunk_size), b''):
             yield chunk
+
+
+def sync_file_system(data_dir: str,
+                     db: 'DigestDB') -> List[bytes]:
+    '''
+    Walk the file system under the ``data_dir`` to find items that are not
+    listed in the database.
+
+    :param data_dir: the database's root directory path where binary data is
+      being stored.
+
+    :param db: a database object.
+
+    :return: a list of digests found on the file system that are not found
+      in the database.
+    '''
+    items = []
+    for dirpath, dirnames, filenames in os.walk(data_dir):
+        for filename in filenames:
+            # filename is the str dump of the hex digest
+            digest = bytes.fromhex(filename)
+            if not db.exists(digest):
+                items.append(digest)
+    return items
 
 
 class DigestDB(object):
@@ -108,10 +143,12 @@ class DigestDB(object):
     the category.
     '''
 
-    def __init__(self, db_dir,
-                 filename='digestdb.db',
-                 data_dir='digestdb.data',
-                 dir_depth=3):
+    def __init__(self,
+                 db_dir: str,
+                 filename: str = 'digestdb.db',
+                 data_dir: str = 'digestdb.data',
+                 dir_depth: int = 3,
+                 hash_name: str = 'sha256') -> None:
         '''
 
         :param db_dir: the top level directory that the blob database will use
@@ -128,6 +165,8 @@ class DigestDB(object):
           binary files are stored. The directories are based on the first N
           characters of the hash digest. The default value is 3 which should
           be sufficient for large databases.
+
+        :param hash_name: the name of a hash calculator. Defaults to sha256.
         '''
         if not os.path.exists(db_dir):
             raise Exception(
@@ -136,22 +175,23 @@ class DigestDB(object):
         self.filename = os.path.join(self.db_dir, filename)
         self.data_dir = os.path.join(self.db_dir, data_dir)
         self.dir_depth = dir_depth
+        self.hash_name = hash_name
         self.db_url = 'sqlite:///{}'.format(self.filename)
         self.lock_file = '{}.lock'.format(
             os.path.splitext(self.filename)[0])
 
-        self.engine = None
-        self.sessionmaker = None
-        self.session = None
+        self.engine = None  # type: Engine
+        self.sessionmaker = None  # type: sessionmaker
+        self.session = None  # type: Session
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<DigestDB '{}'>".format(self.db_dir)
 
-    def open(self):
+    def open(self) -> None:
         ''' Open the database.
 
-        This will create the database file if necessary and will open an
-        existing file if on is present.
+        This will create the database file if necessary or will open an
+        existing file if one is present.
         '''
         if os.path.exists(self.lock_file):
             raise Exception(
@@ -167,7 +207,7 @@ class DigestDB(object):
         self.sessionmaker = sessionmaker(bind=self.engine)
         self.session = self.sessionmaker()
 
-    def close(self):
+    def close(self) -> None:
         ''' Close the database '''
         if self.session:
             self.session.close()
@@ -179,7 +219,8 @@ class DigestDB(object):
 
     @contextmanager
     def session_scope(self):
-        ''' Provide a transactional scope around a series of operations.
+        '''
+        Provide a transactional scope around a series of operations.
 
         This context manager can make it easier to perform database actions.
         The developer can avoid adding the commit or rollback boilerplate
@@ -202,12 +243,13 @@ class DigestDB(object):
             session.rollback()
             raise
 
-
     # ------------------------------------------------------------------------
     # Category methods
     #
 
-    def put_category(self, label, description=''):
+    def put_category(self,
+                     label: str,
+                     description: str = '') -> None:
         ''' Add a category to digestdb.
 
         If the category already exists then an exception is raised.
@@ -226,12 +268,14 @@ class DigestDB(object):
         except Exception:
             c = Category(label=label, description=description)
             self.session.add(c)
-            self.session.commit()  # commit to create a category_id
+            self.session.commit()
         else:
             raise Exception('Category {} already exists'.format(label))
 
-    def get_category(self, label):
-        ''' Return the contents of a category.
+    def get_category(self,
+                     label: str) -> Tuple[str, str]:
+        '''
+        Return the contents of a category.
 
         :param label: a short string that uniquely identifies a category.
 
@@ -246,7 +290,8 @@ class DigestDB(object):
             raise Exception(
                 'Category {} not found in database'.format(label)) from None
 
-    def query_category(self, **filters):
+    def query_category(self,
+                       **filters: Dict[str, str]) -> List[Tuple[str, str]]:
         ''' Query the categories in the database.
 
         This query supports a limited number of filter keyword arguments.
@@ -273,7 +318,7 @@ class DigestDB(object):
 
         return [(c.label, c.description) for c in query]
 
-    def count_category(self):
+    def count_category(self) -> int:
         ''' Return the number of category items in the database. '''
         return self.session.query(Category).count()
 
@@ -281,11 +326,46 @@ class DigestDB(object):
     # Data methods
     #
 
-    def put_data(self, category, data, timestamp=None):
-        ''' Add a data item to digestdb.
+    def _put_data_digest(self,
+                         category: str,
+                         digest: bytes,
+                         size: int,
+                         timestamp: datetime.datetime = None):
+        '''
+        Add an item, with a pre-computed hash, to the database.
+
+        This method is used to update the database for data items that are
+        already present on the file system.
 
         :param category: a category label that must match an existing
-          category that was previously added to the database.
+          category in the database.
+
+        :param digest: a bytes object representing the hash digest of the data
+          item.
+
+        :param size: an integer representing the size of the data blob.
+
+        :param timestamp: a specific timestamp to store alongside the metadata
+          instead of the default `now` timestamp used if this field if left
+          as its default of None.
+
+        :return: a bytes object representing the hash digest of the data item
+        '''
+        b = Digest(digest=digest, category_label=category,
+                   byte_size=size, timestamp=timestamp)
+        self.session.add(b)
+        self.session.commit()
+        return digest
+
+    def put_data(self,
+                 category: str,
+                 data: bytes,
+                 timestamp: datetime.datetime = None) -> bytes:
+        '''
+        Add a data item to the database.
+
+        :param category: a category label that must match an existing
+          category in the database.
 
         :param data: the binary data to be stored in the database.
 
@@ -295,69 +375,115 @@ class DigestDB(object):
 
         :return: a bytes object representing the hash digest of the data item
         '''
-        digest = data_digest(data)
-
-        # write data to disk
+        digest = data_digest(data, hash_name=self.hash_name)
         write_database_file(digest, data, self.data_dir, self.dir_depth)
-
-        # add entry to database
-        b = Blob(digest=digest, category_label=category,
-                 byte_size=len(data), timestamp=timestamp)
-        self.session.add(b)
-        self.session.commit()
-
+        self._put_data_digest(
+            category, digest, len(data), timestamp=timestamp)
         return digest
 
-    def put_data_many(self, *items):
-        ''' Add many data items to digestdb.
+    def put_data_many(self,
+                      *items: PutItem) -> List[bytes]:
+        '''
+        Add a list of data items to the database.
 
-        :param items: a list of tuples (category_id, data, [timestamp]).
+        :param items: a list of items to add to the database. Items are
+          expected to be 3-tuples of (category_id, data, timestamp). If
+          timestamp is None then the current time will be used as the
+          timestamp field in the database.
 
         :return: a list of bytes object representing the hash digest of the
           data items
         '''
         digests = []
         for item in items:
-            try:
-                category, data = item
-                timestamp = None
-            except ValueError:
-                category, data, timestamp = item
-
-            digests.append(
-                self.put_data(category, data, timestamp=timestamp))
-
+            category, data, timestamp = item
+            digests.append(self.put_data(category, data, timestamp))
         return digests
 
-    # def put_file(self, category, filepath, timestamp=None):
-    #     ''' Add the contents of a file to digestdb.
+    def put_file(self,
+                 category: str,
+                 filepath: str,
+                 timestamp: datetime.datetime = None) -> bytes:
+        '''
+        Add the contents of a file to digestdb.
 
-    #     This is just a convenience wrapper around `put` which efficiently
-    #     reads the contents of the file and feeds it into put.
+        :param category: a category label that must match an existing
+          category that was previously added to the database.
 
-    #     :param category: a category label that must match an existing
-    #       category that was previously added to the database.
+        :param timestamp: a specific timestamp to store alongside the metadata
+          instead of the default `now` timestamp used if this field if left
+          as its default of None.
 
-    #     :param timestamp: a specific timestamp to store alongside the metadata
-    #       instead of the default `now` timestamp used if this field if left
-    #       as its default of None.
-    #     '''
-    #     # TODO: The digest calculator is implemented efficiently using a
-    #     # generator to read the file in chunks while calculating the digest.
-    #     # Ideally I would like a similar method to write the file into the
-    #     # database file system. Naively this would involve two file reader
-    #     # generators, so ideally I would like a chunked reader that would
-    #     # be used once to compute the digest and write the file into the
-    #     # database filesystem.
+        :return: a bytes object representing the hash digest of the data item
+        '''
+        digest = file_digest(filepath, hash_name=self.hash_name)
+        with open(filepath, 'rb') as fd:
+            data = fd.read()
+        write_database_file(digest, data, self.data_dir, self.dir_depth)
+        self._put_data_digest(
+            category, digest, len(data), timestamp=timestamp)
+        return digest
 
-    #     digest = file_digest(filepath)
+    def get_data(self, digest: bytes) -> bytes:
+        ''' Return the contents of a data item.
 
-    #     with open(filepath, 'rb') as fd:
-    #         data = fd.read()
+        :param digest: a bytes object representing the hash digest of the
+          data item.
 
-    #     return self.put_data(category, data)
+        :return: bytes
+        '''
+        # Go straight to the filesystem to fetch a data item.
+        # Depending on the size of the objects it may be useful to
+        # fetch the metadata from the database first as the size could
+        # be used to choose an optimal chunk_size value.
+        try:
+            return b''.join(
+                chunk for chunk in read_database_file(
+                    digest, self.data_dir, self.dir_depth))
+        except OSError:
+            logger.exception('Could not get file matching: {}'.format(digest))
+            return None
 
-    def exists(self, digest):
+    def query_data(self,
+                   **filters: Dict[str, str]) -> QueryResult:
+        ''' Query data items in the database.
+
+        This query supports a limited number of filter keyword arguments.
+        The supported query keywords are:
+
+        :keyword category: a label to use as a category query filter.
+
+        :return: a list of matched blobs as 4-tuple containing the
+          digest, category_label, byte_size, timestamp.
+
+        '''
+        query = self.session.query(Digest)
+
+        category = filters.get('category')
+        if category:
+            query = query.filter_by(category_label=category)
+
+        return [
+            (b.digest, b.category_label, b.byte_size, b.timestamp) for b in query]
+
+    def delete_data(self,
+                    digest: bytes) -> None:
+        ''' Delete a data item from the database '''
+        try:
+            b = self.session.query(Digest).filter_by(digest=digest).one()
+            self.session.delete(b)
+            self.session.commit()
+        except Exception:
+            pass
+
+        try:
+            os.remove(
+                os.path.join(self.data_dir, digest_filepath(
+                    digest, dir_depth=self.dir_depth)))
+        except OSError:
+            pass
+
+    def exists(self, digest: bytes) -> bool:
         ''' Check if an entry exists in the database for the digest.
 
         This will check both the database and the file system.
@@ -371,7 +497,7 @@ class DigestDB(object):
         present_in_fs = False
 
         try:
-            self.session.query(Blob).filter_by(digest=digest).one()
+            self.session.query(Digest).filter_by(digest=digest).one()
             present_in_db = True
         except Exception:
             pass
@@ -389,67 +515,6 @@ class DigestDB(object):
 
         return result
 
-    def get_data(self, digest):
-        ''' Return the contents of a data item.
-
-        :param digest: a bytes object representing the hash digest of the
-          data item.
-
-        :return: a generator that returns chunks of the data item.
-        '''
-        # We can just go straight to the filesystem to fetch a blob.
-        # Depending on the size of the objects it may be useful to
-        # fetch the metadata from the database. The size could be
-        # used to choose an optimal chunk_size value.
-        try:
-            return b''.join(
-                c for c in read_database_file(
-                    digest, self.data_dir, self.dir_depth))
-            # parts = []
-            # for c in read_database_file(digest, self.data_dir, self.dir_depth):
-            #     parts.append(c)
-            # return b''.join(parts)
-        except OSError:
-            logger.exception('Could not get file')
-            return None
-
-    def query_data(self, **filters):
-        ''' Query data items in the database.
-
-        This query supports a limited number of filter keyword arguments.
-        The supported query keywords are:
-
-        :keyword category: a label to use as a category query filter.
-
-        :return: a list of matched blobs as 4-tuple containing the
-          digest, category_label, byte_size, timestamp.
-
-        '''
-        query = self.session.query(Blob)
-
-        category = filters.get('category')
-        if category:
-            query = query.filter_by(category_label=category)
-
-        return [
-            (b.digest, b.category_label, b.byte_size, b.timestamp) for b in query]
-
-    def delete_data(self, digest):
-        ''' Delete a data item from the database '''
-        try:
-            b = self.session.query(Blob).filter_by(digest=digest).one()
-            self.session.delete(b)
-            self.session.commit()
-        except Exception:
-            pass
-
-        try:
-            os.remove(
-                os.path.join(self.data_dir, digest_filepath(
-                    digest, dir_depth=self.dir_depth)))
-        except OSError:
-            pass
-
-    def count_data(self):
+    def count_data(self) -> int:
         ''' Return the number of data items in the database. '''
-        return self.session.query(Blob).count()
+        return self.session.query(Digest).count()

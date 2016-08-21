@@ -4,11 +4,11 @@
 # Therefore you should attempt to maintain consistency between each rule and
 # it's preceeding comment line.
 
+.PHONY: help clean scrub test docs style style.fix dist check_types
+
 # help:
 # help: Makefile help
 # help:
-
-PYTHON := $(shell which python3.5)
 
 STYLE_EXCLUDE_LIST:=git status --porcelain --ignored | grep "!!" | grep ".py$$" | cut -d " " -f2 | tr "\n" ","
 STYLE_MAX_LINE_LENGTH:=160
@@ -32,11 +32,11 @@ scrub:
 
 # help: test                           - run project tests
 test:
-	@$(PYTHON) -m unittest discover -s tests -v
+	@python -m unittest discover -s tests -v
 
 
 # help: docs                           - generate project documentation
-doc:
+docs:
 	@cd doc && make html
 
 
@@ -52,13 +52,23 @@ style.fix:
 	@$(STYLE_PEP8_CMD) -q  | xargs -r autopep8 -i --max-line-length=$(STYLE_MAX_LINE_LENGTH)
 
 
-# help: dist                           - create a wheel based distribution package
+# help: check_types                    - check type hint annotations
+check_types:
+	@MYPYPATH=$VIRTUAL_ENV/lib/python3.5/site-packages mypy -p digestdb -s
+
+
+
+# help: dist                           - create a source distribution package
 dist:
-	@$(PYTHON) setup.py bdist_wheel
+	@python setup.py sdist
+
+
+# help: dist.upload                    - upload a source distribution package
+dist.upload:
+	@python setup.py sdist upoad
 
 
 # Keep these lines at the end of the file to retain nice help
 # output formatting.
 # help:
 
-.PHONY: help clean scrub test doc style style.fix

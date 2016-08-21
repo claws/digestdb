@@ -34,6 +34,7 @@ class HashTestCase(unittest.TestCase):
         self.assertIn(expected, str(cm.exception))
 
         d = digestdb.hashify.data_digest(data)
+        self.assertIsInstance(d, bytes)
 
     def test_file_digest(self):
         ''' check files can be hashed into a digest '''
@@ -45,7 +46,8 @@ class HashTestCase(unittest.TestCase):
             fd.flush()
             fd.close()
 
-            digestdb.hashify.file_digest(filename)
+            d = digestdb.hashify.file_digest(filename)
+            self.assertIsInstance(d, bytes)
 
         finally:
             if os.path.isdir(tempdir):
@@ -55,6 +57,7 @@ class HashTestCase(unittest.TestCase):
         ''' check filepath can be created from a digest '''
 
         digest = digestdb.hashify.data_digest(data)
+        self.assertIsInstance(digest, bytes)
 
         with self.assertRaises(Exception) as cm:
             digestdb.hashify.digest_filepath(digest, dir_depth=0)
@@ -68,4 +71,5 @@ class HashTestCase(unittest.TestCase):
 
         for i in range(1, 10):
             fpath = digestdb.hashify.digest_filepath(digest, dir_depth=i)
+            self.assertIsInstance(fpath, str)
             self.assertEqual(len(fpath.split(os.sep)), i + 1)

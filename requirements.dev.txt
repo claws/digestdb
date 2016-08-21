@@ -1,2 +1,5 @@
-sphinx
-autopep8
+-r requirements.txt
+sphinx>=1.4.4
+pycodestyle>=2.0.0
+autopep8>=1.2.4
+mypy-lang>=0.4.3
