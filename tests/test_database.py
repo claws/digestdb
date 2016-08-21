@@ -1,5 +1,6 @@
 ''' Tests for digestdb.database '''
 
+import datetime
 import os
 import random
 import shutil
@@ -18,14 +19,17 @@ SYS_TMP_DIR = os.environ.get('TMPDIR', tempfile.gettempdir())
 data = b'\x03\xee\x02\x00\x07\x00\x00\x00\x0c\x00\x00\x00'
 
 
-def create_data_item(categories, max_size=1000):
+def create_data_item(categories, max_size=1000, timestamp=False):
     ''' Create an item representing a data item '''
     item_size = random.randint(20, max_size)
     cat = random.choice(categories)
     data = b''.join(
-        random.randint(1,255).to_bytes(1, byteorder='little')
-            for i in range(item_size))
-    return cat, data
+        random.randint(1, 255).to_bytes(1, byteorder='little')
+        for i in range(item_size))
+    ts = None
+    if timestamp:
+        ts = datetime.datetime.now()
+    return cat, data, ts
 
 
 class DigestDBTestCase(unittest.TestCase):
@@ -115,7 +119,7 @@ class DigestDBTestCase(unittest.TestCase):
                 shutil.rmtree(tempdir)
 
     def test_database_blobs(self):
-        ''' check categories can be added, retrieved and queried '''
+        ''' check blobs can be added, retrieved and queried '''
         tempdir = tempfile.mkdtemp(dir=SYS_TMP_DIR)
 
         try:
@@ -131,12 +135,12 @@ class DigestDBTestCase(unittest.TestCase):
                 db.put_category(cat)
             self.assertEqual(db.count_category(), 2)
 
-            # Add 4 items idividually
+            # Add 4 items individually
             test_data = {}
             for i in range(4):
-                cat, data = create_data_item(categories)
-                digest = db.put_data(cat, data)
-                test_data[digest] = (cat, data)
+                cat, data, ts = create_data_item(categories)
+                digest = db.put_data(cat, data, ts)
+                test_data[digest] = (cat, data, ts)
             self.assertEqual(len(test_data), 4)
 
             # Choose one of the test items and check that it exists in
@@ -160,6 +164,66 @@ class DigestDBTestCase(unittest.TestCase):
             self.assertEqual(db.count_data(), 14)
 
             db.delete_data(digest)
+            self.assertFalse(db.exists(digest))
+
+            # deleting the same item again should not cause an error
+            db.delete_data(digest)
+
+            db.close()
+
+        finally:
+            if os.path.isdir(tempdir):
+                shutil.rmtree(tempdir)
+
+    def test_database_files(self):
+        ''' check files can be added, retrieved and queried '''
+        tempdir = tempfile.mkdtemp(dir=SYS_TMP_DIR)
+
+        try:
+            dir_depth = 1
+            db = digestdb.DigestDB(tempdir, dir_depth=dir_depth)
+            db.open()
+
+            # add some categories to use when adding blobs
+            cat1 = 'cat1'
+            cat2 = 'cat2'
+            categories = (cat1, cat2)
+            for cat in categories:
+                db.put_category(cat)
+            self.assertEqual(db.count_category(), 2)
+
+            # Add 4 items individually
+            test_data = {}
+            for i in range(4):
+                cat, data, ts = create_data_item(categories)
+                filepath = os.path.join(tempdir, 'tmp_file_{}'.format(i))
+                with open(filepath, 'wb') as fd:
+                    fd.write(data)
+                digest = db.put_file(cat, filepath, ts)
+                test_data[digest] = (cat, filepath, ts)
+            self.assertEqual(len(test_data), 4)
+
+            # Choose one of the test items and check that it exists in
+            # the database, then fetch it back and check its contents.
+            digest = random.choice(list(test_data))
+            filepath = test_data[digest][1]
+            self.assertTrue(db.exists(digest))
+            with open(filepath, 'rb') as fd:
+                file_data = fd.read()
+            self.assertEqual(file_data, db.get_data(digest))
+
+            self.assertFalse(db.exists(b'deadbeef'))
+
+            # Check that data queries can be performed based on category
+            cat1_matches = db.query_data(category=cat1)
+            cat2_matches = db.query_data(category=cat2)
+            total_matches = len(cat1_matches) + len(cat2_matches)
+            # 4 items were added in this test
+            self.assertEqual(total_matches, 4)
+            self.assertEqual(db.count_data(), 4)
+
+            db.delete_data(digest)
+            self.assertEqual(db.count_data(), 3)
             self.assertFalse(db.exists(digest))
 
             # deleting the same item again should not cause an error

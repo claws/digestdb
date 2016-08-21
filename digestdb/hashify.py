@@ -3,8 +3,9 @@ import hashlib
 import os
 
 
-def data_digest(data, hash_name='sha256'):
-    ''' Return a hash representing the binary data.
+def data_digest(data: bytes, hash_name: str = 'sha256') -> bytes:
+    '''
+    Return a hash representing the binary data.
 
     :param data: a bytes object representing the object to be hashed.
 
@@ -22,8 +23,11 @@ def data_digest(data, hash_name='sha256'):
     return h.digest()
 
 
-def file_digest(filename, hash_name='sha256', chunk_size=2**20):
-    ''' Return a hash representing the contents of a file.
+def file_digest(filename: str,
+                hash_name: str = 'sha256',
+                chunk_size: int = 2**20) -> bytes:
+    '''
+    Return a hash representing the contents of a file.
 
     :param data: a bytes object representing the object to be hashed.
 
@@ -42,10 +46,12 @@ def file_digest(filename, hash_name='sha256', chunk_size=2**20):
     return h.digest()
 
 
-def digest_filepath(digest, dir_depth=3):
-    ''' Convert a digest into its equivalent database filepath.
+def digest_filepath(digest: bytes,
+                    dir_depth: int = 3) -> str:
+    '''
+    Convert a digest into its equivalent database filepath.
 
-    The filepath will look like the example below when `dir_depth=3`:
+    The filepath will look like the example below when ``dir_depth=3``:
 
     .. code-block:: console
 
@@ -57,10 +63,18 @@ def digest_filepath(digest, dir_depth=3):
     '''
     if not isinstance(dir_depth, int) or dir_depth < 1:
         raise Exception(
-            'Invalid dir_depth. Value must be an int and greater'
-            'than 1, got: %s, %s'.format(type(dir_depth), dir_depth))
+            'Invalid dir_depth. Value must be an integer, 1 or greater, '
+            'got: %s, %s'.format(type(dir_depth), dir_depth))
 
-    filename = digest.hex()
+    # typeshed #488, hex missing from bytes definition
+    filename = digest.hex()  # type: ignore
+
     # Extract two characters from the filename for each dir_depth
-    dirnames = [filename[i:i + 2] for i in range(0, dir_depth * 2, 2)]
-    return os.path.join(*dirnames, filename)
+    # to construct the direcory elements.
+    parts = []  # type: List[str]
+    for i in range(0, dir_depth * 2, 2):
+        dir_element = filename[i:i + 2]
+        parts.append(dir_element)
+    parts.append(filename)
+    filepath = os.path.join(parts[0], *parts[1:])
+    return filepath

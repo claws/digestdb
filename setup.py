@@ -2,24 +2,44 @@
 
 ''' Installation script for digestdb. '''
 
+import os
+import re
 
-# Always prefer setuptools over distutils
+from pip.req import parse_requirements
+from pip.download import PipSession
 from setuptools import setup
-from os import path
 
+
+install_reqs = parse_requirements("requirements.txt", session=PipSession())
+requires = [str(ir.req) for ir in install_reqs]
 
 short_description = (
-    'digestdb is a database for storing binary data in a '
-    'balanced set of file system directories and providing access to '
-    'this data via tradiational database style (e.g. SQL) access.')
+    'Digestdb provides database style (e.g. SQL) access to binary data'
+    'files stored in a balanced set of file system directories.')
 
 long_description = short_description
 
-here = path.abspath(path.dirname(__file__))
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+def read_version():
+    regexp = re.compile(r"^__version__\W*=\W*['\"](\d\d\.\d\d\.\d+)['\"]")
+    init_file = os.path.join(
+        os.path.dirname(__file__), 'digestdb', '__init__.py')
+    with open(init_file) as f:
+        for line in f:
+            match = regexp.match(line)
+            if match:
+                return match.group(1)
+        else:
+            raise RuntimeError(
+                'Cannot find __version__ in digestdb/__init__.py')
+
+version = read_version()
 
 setup(
     name='digestdb',
-    version='0.0.1a1',
+    version=version,
     description=short_description,
     long_description=long_description,
     url='https://github.com/claws/digestdb',
@@ -33,9 +53,5 @@ setup(
         'Programming Language :: Python :: 3.5'],
     keywords='hash database development',
     packages=['digestdb'],
-    install_requires=['SQLAlchemy>=1.0.8'],
-    extras_require={
-        'dev': ['sphinx', 'pep8', 'autopep8'],
-        'test': ['coverage'],
-    },
+    install_requires=requires,
 )
